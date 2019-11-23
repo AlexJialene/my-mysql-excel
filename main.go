@@ -7,19 +7,17 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 const (
-	/*USERNAME = "lvji"
-	PASSWORD = "L@#$j"*/
-	USERNAME = "root"
-	PASSWORD = "950426"
+	USERNAME = "lvji"
+	PASSWORD = "L@#$j"
 	NETWORK  = "tcp"
-	//SERVER   = "192.168.32.88"
-	SERVER   = "47.98.45.180"
+	SERVER   = "192.168.32.88"
 	PORT     = 3306
-	DATABASE = "nb-smork"
+	DATABASE = "luoyang-bigdata"
 )
 
 var mysql *gorm.DB
@@ -34,26 +32,21 @@ type Column struct {
 	ColumnComment string
 }
 
-var ch = make(chan int)
+//var ch = make(chan int)
+var wg = sync.WaitGroup{}
 
 func main() {
 	db, _ := openDb()
 	start(db)
-	i := 0
-	for range ch {
-		i += 1
-		if i == 17 {
-			fmt.Println("Generate Excel Done")
-			break
-		}
-	}
-
+	wg.Wait()
+	fmt.Println("Generate excel done")
 }
 
 func start(db *gorm.DB) {
 	var tableNames []Table
 	db.Table("information_schema.tables").Select("table_name , table_comment").Where("table_schema=?", DATABASE).Find(&tableNames)
 
+	wg.Add(len(tableNames))
 	for _, v := range tableNames {
 		var c []Column
 		db.Table("information_schema.columns").Select("column_name , column_comment").Where("table_name=? and table_schema=?", v.TableName, DATABASE).Find(&c)
@@ -63,7 +56,6 @@ func start(db *gorm.DB) {
 }
 
 func GenExcel(table Table) {
-	fmt.Println("gen excel ...")
 	file := excelize.NewFile()
 	for i, v := range table.Columns {
 		axis := AxisName(i + 1)
@@ -72,10 +64,13 @@ func GenExcel(table Table) {
 
 	}
 	as := file.SaveAs("./" + table.TableComment + "-" + table.TableName + ".xlsx")
+	//as := file.SaveAs("./" + table.TableName + ".xlsx")
 	if as != nil {
-		fmt.Println("gen Excel error")
+		fmt.Println("gen Excel error", as)
 	} else {
-		ch <- 1
+		fmt.Println(table.TableComment)
+		fmt.Println("gen excel ...")
+		wg.Done()
 	}
 
 }
